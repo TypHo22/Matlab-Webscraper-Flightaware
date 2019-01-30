@@ -1,0 +1,206 @@
+%% Webscraper 1.0
+% This program is able to fish flight data from flightware.
+% For this purpose an aircraft is selected on www.flightaware.com and the tracklog link is to be inserted in the next section.
+% ExampleLink: https://de.flightaware.com/live/flight/ELY351/history/20181209/1520Z/LLBG/EDDM/tracklog
+% Andreas Bernatzky 13.12.18
+%% Hier Link eingeben
+%ExampleLink:
+% Link='https://de.flightaware.com/live/flight/ANA217/history/20181212/0335Z/RJTT/EDDM/tracklog';%PASTE LINK HERE
+Link='https://flightaware.com/live/flight/CRQ342/history/20181115/1750Z/CYQB/CYGV/tracklog';
+
+%% Config do not touch
+web(Link);
+html=webread(Link);
+constructors=strfind(html,'<td align="left"><span class="show-for-medium-up">');%HTML constructor for a new line. It must always be possible to find an even number of constructors.
+
+lengconstructors=length(constructors);
+lengarr=1:1:lengconstructors;%create me an array ranging from 1 to the length of all constructors
+modulo=mod(lengarr,2); %decide whether the position is even or odd
+anfaenge=find(modulo==1);  %all odd are the beginnings of the html lines
+enden=find(modulo==0); %all straight lines are the ends of the html lines
+constAnfaenge=transpose(constructors(anfaenge));
+constEnden=transpose(constructors(enden));
+aligconstructors=[constAnfaenge,constEnden+550];%+550 against loss overhead
+lengalig=length(aligconstructors);
+% 
+%{'day','clock','breitengradstr','laengengradstr','kursstr','nauticalstr','velstr','heightstr'}
+dataDay=strings(lengalig,1);
+dataClock=strings(lengalig,1);
+dataBreitengrad=ones(lengalig,1);
+dataLaengengrad=ones(lengalig,1);
+dataKurs=ones(lengalig,1);
+dataNautical=ones(lengalig,1);
+dataVelocity=ones(lengalig,1);
+dataHeight=ones(lengalig,1);
+
+
+c=1;
+%% catching  the data from HTML
+% A data record looks like this:
+
+% </tr><tr class="smallrow2">
+% <td align="left"><span class="show-for-medium-up">Mi 02:54:29 VORM.</span><span class="hide-for-medium-up">02:54VORM.</span></td>
+% <td align="right"><span class="show-for-medium-up">33.9421</span><span class="hide-for-medium-up">33.94</span></td>
+% <td align="right"><span class="show-for-medium-up">-118.4508</span><span class="hide-for-medium-up">-118.45</span></td>
+% 					
+% <td align="right"><span>&swarr; 243&deg;</span></td>
+% <!-- <td align="left"><span class="show-for-medium-up">Südwest</span><span class="hide-for-medium-up">SW</span></td> -->
+% <td align="right">169</td>
+% <td align="right" class="show-for-medium-up-table">312</td>
+% 					
+% <td align="right"><span class="show-for-medium-up">320</span><span class="hide-for-medium-up">320</span></td>
+% <td align="right" class="show-for-medium-up-table"><span class="show-for-medium-up">486&nbsp;<img src="https://e1.flightcdn.com/images/live/arrow_up.gif" height="12" width="12" alt="Climbing" /></span></td>
+% <td align="left" class="show-for-large-up-table"><span class="show-for-large-up"><img src="https://e0.flightcdn.com/images/live/fasource.gif" height="12" width="12" /> <a href="/adsb/">FlightAware ADS-B</a>  (KHHR) </span></td>
+
+
+
+
+while(c~=lengalig)
+datacontainment=html(aligconstructors(c,1):aligconstructors(c,2))%positions in html containing the data always from:to charposiition
+
+%find the day
+strdate2find='medium-up'; %is also used for the clock
+dayfind=strfind(datacontainment,strdate2find);
+
+daystr1=datacontainment(dayfind(1)+11);
+daystr2=datacontainment(dayfind(1)+12);
+    day=strcat(daystr1,daystr2);
+    
+    day=convertCharsToStrings(day);
+
+%find the clock
+ clockstr1=datacontainment(dayfind(1)+14);
+ clockstr2=datacontainment(dayfind(1)+15);
+ clockstr3=datacontainment(dayfind(1)+16);
+ clockstr4=datacontainment(dayfind(1)+17);
+ clockstr5=datacontainment(dayfind(1)+18);
+ clockstr6=datacontainment(dayfind(1)+19);
+ clockstr7=datacontainment(dayfind(1)+20);
+ clockstr8=datacontainment(dayfind(1)+21);
+     clock=strcat(clockstr1,clockstr2,clockstr3,clockstr4,clockstr5,clockstr6,clockstr7,clockstr8);
+     clock=convertCharsToStrings(clock);
+%find the degree of latitude and longitude
+Strnumbers2findbeg='up">';  %constructor beginning of number
+Strnumbers2findend='</span>';  % Deconstructor ender number
+numbers2findbeg=strfind(datacontainment,Strnumbers2findbeg);
+numbers2findend=strfind(datacontainment,Strnumbers2findend);
+breitengradstr=datacontainment(numbers2findbeg(3)+4:numbers2findend(3)-2);
+breitengrad=str2double(breitengradstr);
+    laengengradstr=datacontainment(numbers2findbeg(5)+4:numbers2findend(5)-2);
+    laengengrad=str2double(laengengradstr);
+%find the course
+Strkurs2findend='&deg;';
+kurs2findend=strfind(datacontainment,Strkurs2findend);
+kursstr=datacontainment(kurs2findend(1)-3:kurs2findend(1)-1);
+if(strfind(kursstr,';')==1)
+   kursstr=kursstr(2:3);
+end
+
+    kurs=str2double(kursstr);
+% kursstr='tet'
+%find the knautical speed
+Strnauticalfindbeg='<td align="right">';
+Strnauticalfindend='</td>';
+nauticalfindbeg=strfind(datacontainment,Strnauticalfindbeg);
+nauticalfindend=strfind(datacontainment,Strnauticalfindend);
+nauticalstr=datacontainment(nauticalfindbeg(4)+18:nauticalfindend(6)-1);
+    nauticalvelocity=str2double(nauticalstr);
+%find the km/h speed
+Strvelfindbeg='<td align="right" class="show-for-medium-up-table">';
+Strvelfindend='</td>';
+velfindbeg=strfind(datacontainment,Strvelfindbeg);
+velfindend=strfind(datacontainment,Strvelfindend);
+velstr=datacontainment(velfindbeg(1)+strlength(Strvelfindbeg):velfindend(7)-1);
+    velocity=str2double(velstr);
+%find the height in m
+Strheightfindbeg='hide-for-medium-up">';
+Strheightfindend='</td>';
+heightfindbeg=strfind(datacontainment,Strheightfindbeg);
+heightfindend=strfind(datacontainment,Strheightfindend);
+heightstr=datacontainment(heightfindbeg(5)+strlength(Strheightfindbeg):heightfindend(8)-3-strlength(Strheightfindend));
+    height=str2double(heightstr);
+              datastr={'day','clock','breitengradstr','laengengradstr','kursstr','nauticalstr','velstr','heightstr'}; %fuer debugging gut
+                  datastr={day,clock,breitengradstr,laengengradstr,kursstr,nauticalstr,velstr,heightstr}; %fuer debugging gut
+
+dataClock(c,1)=clock;
+dataDay(c,1)=day;
+dataBreitengrad(c,1)=breitengrad;
+dataLaengengrad(c,1)=laengengrad;
+dataKurs(c,1)=kurs;
+dataNautical(c,1)=nauticalvelocity;
+dataVelocity(c,1)=velocity;
+dataHeight(c,1)=height;
+
+c=c+1;
+
+
+end
+%% check for mistakes
+%If there are no changes in the HTML for a long time, then the
+%previous line gets copied on that position(the value that has not changed). Here
+% If this case happens the HTML parsing will not work and a NaN would be accepted
+%This section is written to prevent NaN and overwrite NaN with the last
+%valid data
+
+c=1;
+leng=length(dataHeight);
+while(c~=leng) %check the data for  NaN
+   datacheck=dataHeight(c,1); %check data
+   
+   if(isnan(datacheck)==1) %if data is NaN...
+       
+       if(c==1) %if the plane is on the ground velocity, nautical velocity and height will be empty in html. write zero for that->prevents NaN...
+         dataHeight(c,1)=0;% setze dementsprechend null
+       else
+      dataHeight(c,1)=dataHeight(c-1,1);%...the htmldata was empty because there were no changes. Write the last valid value
+       end
+   end   
+    c=c+1;
+end
+
+c=1;
+leng=length(dataVelocity);
+while(c~=leng)
+   datacheck=dataVelocity(c,1);
+   
+   if(isnan(datacheck)==1)
+       
+       if(c==1)
+     dataVelocity(c,1)=0;
+       else
+      dataVelocity(c,1)=dataVelocity(c-1,1);
+       end
+   end   
+    c=c+1;
+end
+
+c=1;
+leng=length(dataNautical);
+
+while(c~=leng)
+   datacheck=dataNautical(c,1);
+   
+   if(isnan(datacheck)==1)
+       
+       if(c==1)
+         dataNautical(c,1)=0;
+       else
+     dataNautical(c,1)=dataNautical(c-1,1);
+       end
+   end   
+    c=c+1;
+end
+
+
+%% create datatable and plot
+dataTable=table(dataClock,dataDay,dataBreitengrad,dataLaengengrad,dataKurs,dataNautical,dataVelocity,dataHeight,'VariableNames',{'Uhrzeit','Tag','Breitengrad','Laengengrad','Kurs__in_grad','Nautische_Geschwindigkeit_in_kN','Geschwindigkeit_in_km_h','Hoehe_in_m'})%table welche alle daten enthelt 
+
+plot3(dataBreitengrad(1:end-1),dataLaengengrad(1:end-1),dataHeight(1:end-1)) %the last element always contains 1, because the html here has not been updated yet
+hold on
+plot3(dataBreitengrad(1),dataLaengengrad(1),dataHeight(1),'+');
+plot3(dataBreitengrad(end-1),dataLaengengrad(end-1),dataHeight(end-1),'o');
+legend('Flightpath','Start','Landing');
+xlabel('degree of broadness');
+ylabel('degree of longitude');
+zlabel('Height[m]');
+grid on
